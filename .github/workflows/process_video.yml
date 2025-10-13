@@ -104,8 +104,8 @@ jobs:
           mirror -R work/480p $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/480p
           mirror -R work/720p $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/720p
           mirror -R work/1080p $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/1080p
-          mirror -R work/master.m3u8 $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/master.m3u8
-          mirror -R encryption/key.bin $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/key.key
+          put work/master.m3u8 -o $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/master.m3u8
+          put encryption/key.bin -o $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/key.key
           bye
           EOF
 
