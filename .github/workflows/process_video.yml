@@ -1,0 +1,109 @@
+name: Encode and Upload Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: "Direct URL of the video to process"
+        required: true
+      uuid:
+        description: "Unique folder name for output (e.g., random UUID)"
+        required: true
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+
+    env:
+      FTP_HOST: ${{ secrets.FTP_HOST }}
+      FTP_USER: ${{ secrets.FTP_USER }}
+      FTP_PASS: ${{ secrets.FTP_PASS }}
+      FTP_BASE_URL: "/public_html/videos"
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DOMAIN: "https://kuntalworks.com"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg and lftp
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg lftp uuid-runtime
+
+      - name: Create workspace
+        run: |
+          mkdir -p work/{480p,720p,1080p}
+          mkdir -p encryption
+          mkdir -p output
+
+      - name: Download video
+        run: |
+          echo "Downloading video..."
+          wget -O work/input.mp4 "${{ github.event.inputs.video_url }}"
+
+      - name: Generate encryption key
+        run: |
+          openssl rand 16 > encryption/key.bin
+          echo "${{ env.DOMAIN }}/videos/${{ github.event.inputs.uuid }}/segments/key.key" > encryption/key_info.txt
+          echo "encryption/key.bin" >> encryption/key_info.txt
+          echo "encryption/key.bin" >> encryption/key_info.txt
+
+      - name: Encode video into HLS variants
+        run: |
+          ffmpeg -i work/input.mp4 \
+            -vf scale=-2:480 -c:a aac -ar 48000 -b:a 128k -c:v h264 -profile:v main -crf 20 -g 48 -keyint_min 48 \
+            -hls_time 6 -hls_playlist_type vod \
+            -hls_key_info_file encryption/key_info.txt \
+            -hls_segment_filename work/480p/%03d.ts \
+            work/480p/playlist.m3u8
+
+          ffmpeg -i work/input.mp4 \
+            -vf scale=-2:720 -c:a aac -ar 48000 -b:a 128k -c:v h264 -profile:v main -crf 20 -g 48 -keyint_min 48 \
+            -hls_time 6 -hls_playlist_type vod \
+            -hls_key_info_file encryption/key_info.txt \
+            -hls_segment_filename work/720p/%03d.ts \
+            work/720p/playlist.m3u8
+
+          ffmpeg -i work/input.mp4 \
+            -vf scale=-2:1080 -c:a aac -ar 48000 -b:a 192k -c:v h264 -profile:v high -crf 20 -g 48 -keyint_min 48 \
+            -hls_time 6 -hls_playlist_type vod \
+            -hls_key_info_file encryption/key_info.txt \
+            -hls_segment_filename work/1080p/%03d.ts \
+            work/1080p/playlist.m3u8
+
+      - name: Create master playlist
+        run: |
+          cat > work/master.m3u8 <<EOF
+          #EXTM3U
+          #EXT-X-VERSION:3
+          #EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=854x480
+          480p/playlist.m3u8
+          #EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=1280x720
+          720p/playlist.m3u8
+          #EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1920x1080
+          1080p/playlist.m3u8
+          EOF
+
+      - name: Upload to FTP
+        run: |
+          echo "Uploading to FTP..."
+          lftp -u "$FTP_USER","$FTP_PASS" $FTP_HOST <<EOF
+          set ftp:ssl-allow no
+          mkdir -p $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments
+          mirror -R work $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments
+          bye
+          EOF
+
+      - name: Notify Telegram
+        run: |
+          VIDEO_URL="${{ env.DOMAIN }}/videos/${{ github.event.inputs.uuid }}/master.m3u8"
+          echo "Sending Telegram notification..."
+          curl -s -X POST "https://api.telegram.org/bot${{ env.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ env.TELEGRAM_CHAT_ID }}" \
+            -d text="✅ Video processed successfully!\n🎬 Watch here: ${VIDEO_URL}"
+
+      - name: Summary
+        run: |
+          echo "✅ Video processed, uploaded to FTP, and Telegram notified."
