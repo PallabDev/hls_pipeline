@@ -17,7 +17,7 @@ jobs:
       FTP_HOST: ${{ secrets.FTP_HOST }}
       FTP_USER: ${{ secrets.FTP_USER }}
       FTP_PASS: ${{ secrets.FTP_PASS }}
-      FTP_BASE_URL: "/public_html/videos"
+      FTP_BASE_URL: "/public_html/s3_video/videos" # ✅ points to s3_video
       DOMAIN: "https://kuntalworks.com"
 
     steps:
@@ -35,7 +35,8 @@ jobs:
       - name: Generate encryption key
         run: |
           openssl rand 16 > encryption/key.bin
-          echo "${{ env.DOMAIN }}/videos/${{ github.event.inputs.uuid }}/segments/720p/key.key" > encryption/key_info.txt
+          # Updated URL to include s3_video
+          echo "${{ env.DOMAIN }}/s3_video/videos/${{ github.event.inputs.uuid }}/segments/720p/key.key" > encryption/key_info.txt
           echo "encryption/key.bin" >> encryption/key_info.txt
           echo "" >> encryption/key_info.txt
 
