@@ -9,7 +9,9 @@ on:
       uuid:
         description: "Unique folder name for output (e.g., random UUID)"
         required: true
-
+      file_name:
+        description: "Original uploaded file name"
+        required: true
 jobs:
   encode1080p:
     runs-on: ubuntu-latest
