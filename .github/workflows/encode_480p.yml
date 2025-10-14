@@ -1,0 +1,59 @@
+name: Encode 480p Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: "Direct URL of the video to process"
+        required: true
+      uuid:
+        description: "Unique folder name for output (e.g., random UUID)"
+        required: true
+
+jobs:
+  encode480p:
+    runs-on: ubuntu-latest
+    env:
+      FTP_HOST: ${{ secrets.FTP_HOST }}
+      FTP_USER: ${{ secrets.FTP_USER }}
+      FTP_PASS: ${{ secrets.FTP_PASS }}
+      FTP_BASE_URL: "/public_html/videos"
+      DOMAIN: "https://kuntalworks.com"
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install FFmpeg and lftp
+        run: sudo apt update && sudo apt install -y ffmpeg lftp openssl
+
+      - name: Prepare folders
+        run: mkdir -p work/480p encryption
+
+      - name: Download video
+        run: wget -O work/input.mp4 "${{ github.event.inputs.video_url }}"
+
+      - name: Generate encryption key
+        run: |
+          openssl rand 16 > encryption/key.bin
+          echo "${{ env.DOMAIN }}/videos/${{ github.event.inputs.uuid }}/segments/key.key" > encryption/key_info.txt
+          echo "encryption/key.bin" >> encryption/key_info.txt
+          echo "" >> encryption/key_info.txt
+
+      - name: Encode 480p
+        run: |
+          ffmpeg -i work/input.mp4 \
+            -vf scale=-2:480 -c:a aac -ar 48000 -b:a 128k \
+            -c:v h264 -profile:v main -crf 20 -g 48 -keyint_min 48 \
+            -hls_time 6 -hls_playlist_type vod \
+            -hls_key_info_file encryption/key_info.txt \
+            -hls_segment_filename work/480p/%03d.ts \
+            work/480p/playlist.m3u8
+
+      - name: Upload to FTP
+        run: |
+          lftp -u "$FTP_USER","$FTP_PASS" $FTP_HOST <<EOF
+          set ftp:ssl-allow no
+          mkdir -p $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/480p
+          mirror -R work/480p $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/480p
+          put encryption/key.bin -o $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/key.key
+          bye
+          EOF
