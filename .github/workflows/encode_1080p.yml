@@ -35,7 +35,7 @@ jobs:
       - name: Generate encryption key
         run: |
           openssl rand 16 > encryption/key.bin
-          echo "${{ env.DOMAIN }}/videos/${{ github.event.inputs.uuid }}/segments/key.key" > encryption/key_info.txt
+          echo "${{ env.DOMAIN }}/videos/${{ github.event.inputs.uuid }}/segments/1080p/key.key" > encryption/key_info.txt
           echo "encryption/key.bin" >> encryption/key_info.txt
           echo "" >> encryption/key_info.txt
 
@@ -55,6 +55,6 @@ jobs:
           set ftp:ssl-allow no
           mkdir -p $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/1080p
           mirror -R work/1080p $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/1080p
-          put encryption/key.bin -o $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/key.key
+          put encryption/key.bin -o $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/1080p/key.key
           bye
           EOF
