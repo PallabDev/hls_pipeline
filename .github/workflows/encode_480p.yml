@@ -9,6 +9,9 @@ on:
       uuid:
         description: "Unique folder name for output (e.g., random UUID)"
         required: true
+      file_name:
+        description: "Original uploaded file name"
+        required: true
 
 jobs:
   encode480p:
@@ -17,7 +20,7 @@ jobs:
       FTP_HOST: ${{ secrets.FTP_HOST }}
       FTP_USER: ${{ secrets.FTP_USER }}
       FTP_PASS: ${{ secrets.FTP_PASS }}
-      FTP_BASE_URL: "/public_html/s3_video/videos" # ✅ already points to s3_video
+      FTP_BASE_URL: "/public_html/s3_video/videos"
       DOMAIN: "https://kuntalworks.com"
 
     steps:
@@ -35,7 +38,6 @@ jobs:
       - name: Generate encryption key
         run: |
           openssl rand 16 > encryption/key.bin
-          # Updated URL to include s3_video
           echo "${{ env.DOMAIN }}/s3_video/videos/${{ github.event.inputs.uuid }}/segments/480p/key.key" > encryption/key_info.txt
           echo "encryption/key.bin" >> encryption/key_info.txt
           echo "" >> encryption/key_info.txt
@@ -59,3 +61,10 @@ jobs:
           put encryption/key.bin -o $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/480p/key.key
           bye
           EOF
+
+      - name: Notify completion to webhook
+        run: |
+          curl -X POST https://${{ env.DOMAIN }}/s3_video/workflow_complete.php \
+            -d "uuid=${{ github.event.inputs.uuid }}" \
+            -d "resolution=480p" \
+            -d "fileName=${{ github.event.inputs.file_name }}"

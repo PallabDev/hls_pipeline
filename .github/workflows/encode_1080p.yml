@@ -59,3 +59,9 @@ jobs:
           put encryption/key.bin -o $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/1080p/key.key
           bye
           EOF
+      - name: Notify completion to webhook
+        run: |
+          curl -X POST https://${{ env.DOMAIN }}/s3_video/workflow_complete.php \
+            -d "uuid=${{ github.event.inputs.uuid }}" \
+            -d "resolution=1080p" \
+            -d "fileName=${{ github.event.inputs.file_name }}"
