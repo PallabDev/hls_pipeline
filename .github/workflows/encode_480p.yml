@@ -21,7 +21,7 @@ jobs:
       FTP_USER: ${{ secrets.FTP_USER }}
       FTP_PASS: ${{ secrets.FTP_PASS }}
       FTP_BASE_URL: "/public_html/s3_video/videos"
-      DOMAIN: "https://kuntalworks.com"
+      DOMAIN: "kuntalworks.com"   # Remove https:// here to avoid double prefix
 
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
       - name: Generate encryption key
         run: |
           openssl rand 16 > encryption/key.bin
-          echo "${{ env.DOMAIN }}/s3_video/videos/${{ github.event.inputs.uuid }}/segments/480p/key.key" > encryption/key_info.txt
+          echo "https://${{ env.DOMAIN }}/s3_video/videos/${{ github.event.inputs.uuid }}/segments/480p/key.key" > encryption/key_info.txt
           echo "encryption/key.bin" >> encryption/key_info.txt
           echo "" >> encryption/key_info.txt
 
@@ -54,17 +54,16 @@ jobs:
 
       - name: Upload to FTP
         run: |
-          lftp -u "$FTP_USER","$FTP_PASS" $FTP_HOST <<EOF
+          lftp -u "$FTP_USER","$FTP_PASS" "$FTP_HOST" <<'END_LFTP'
           set ftp:ssl-allow no
           mkdir -p $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/480p
           mirror -R work/480p $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/480p
           put encryption/key.bin -o $FTP_BASE_URL/${{ github.event.inputs.uuid }}/segments/480p/key.key
-          bye
-          EOF
+          bye EOF END_LFTP 
 
       - name: Notify completion to webhook
         run: |
-          curl -X POST https://${{ env.DOMAIN }}/s3_video/workflow_complete.php \
+          curl -X POST "https://${{ env.DOMAIN }}/s3_video/workflow_complete.php" \
             -d "uuid=${{ github.event.inputs.uuid }}" \
             -d "resolution=480p" \
             -d "fileName=${{ github.event.inputs.file_name }}"
