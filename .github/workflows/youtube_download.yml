@@ -1,0 +1,102 @@
+name: YouTube Downloader
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: "YouTube video URL"
+        required: true
+        type: string
+      format:
+        description: "Output format (mp3 or mp4)"
+        required: true
+        default: "mp3"
+        type: choice
+        options:
+          - mp3
+          - mp4
+      quality:
+        description: "Video quality (1080p, 720p, 480p — ignored for mp3)"
+        required: false
+        default: "720p"
+        type: choice
+        options:
+          - 1080p
+          - 720p
+          - 480p
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: |
+          npm init -y
+          npm install ytdl-core fluent-ffmpeg ffmpeg-static
+
+      - name: Run downloader
+        run: |
+          node <<'EOF'
+          import fs from "fs";
+          import ytdl from "ytdl-core";
+          import ffmpeg from "fluent-ffmpeg";
+          import ffmpegPath from "ffmpeg-static";
+
+          ffmpeg.setFfmpegPath(ffmpegPath);
+
+          const url = process.env.URL;
+          const fmt = process.env.FORMAT;
+          const quality = process.env.QUALITY;
+
+          const main = async () => {
+            const info = await ytdl.getInfo(url);
+            const title = info.videoDetails.title.replace(/[^\w\s]/g, "_");
+            const output = `${title}.${fmt}`;
+
+            if (fmt === "mp3") {
+              const stream = ytdl(url, { quality: "highestaudio" });
+              await new Promise((resolve, reject) => {
+                ffmpeg(stream)
+                  .audioBitrate(320)
+                  .format("mp3")
+                  .save(output)
+                  .on("end", resolve)
+                  .on("error", reject);
+              });
+            } else {
+              let itag = "18";
+              if (quality === "1080p") itag = "137";
+              else if (quality === "720p") itag = "22";
+              else if (quality === "480p") itag = "135";
+
+              await new Promise((resolve, reject) => {
+                const stream = ytdl(url, { quality: itag });
+                const file = fs.createWriteStream(output);
+                stream.pipe(file);
+                stream.on("end", resolve);
+                stream.on("error", reject);
+              });
+            }
+
+            console.log(`✅ Download done: ${output}`);
+          };
+
+          main().catch(console.error);
+          EOF
+        env:
+          URL: ${{ github.event.inputs.video_url }}
+          FORMAT: ${{ github.event.inputs.format }}
+          QUALITY: ${{ github.event.inputs.quality }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube_result
+          path: "*.mp*"
