@@ -28,38 +28,52 @@ on:
 jobs:
   download:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repo
+      - name: 🧩 Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install yt-dlp and ffmpeg
+      - name: ⚙️ Install yt-dlp and FFmpeg
         run: |
-          sudo apt update
-          sudo apt install -y ffmpeg
-          python3 -m pip install -U yt-dlp
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install --upgrade yt-dlp
 
-      - name: Download YouTube media
+      - name: 🎬 Run YouTube Downloader
         run: |
+          echo "$YT_COOKIES" > cookies.txt
           URL="${{ github.event.inputs.video_url }}"
           FORMAT="${{ github.event.inputs.format }}"
           QUALITY="${{ github.event.inputs.quality }}"
-          
-          echo "🎬 Downloading from: $URL"
-          mkdir -p output
+
+          echo "🎞️ Downloading from: $URL"
+          echo "📦 Format: $FORMAT"
+          echo "📺 Quality: $QUALITY"
 
           if [ "$FORMAT" = "mp3" ]; then
-            echo "🎧 Converting to MP3 (highest quality)"
-            yt-dlp -x --audio-format mp3 --audio-quality 0 -o "output/%(title)s.%(ext)s" "$URL"
+            echo "🎧 Extracting best audio..."
+            yt-dlp \
+              -f bestaudio \
+              --extract-audio --audio-format mp3 \
+              --audio-quality 0 \
+              --embed-thumbnail --embed-metadata \
+              --cookies cookies.txt \
+              -o "%(title)s.%(ext)s" "$URL"
           else
-            echo "🎞️ Downloading MP4 in ${QUALITY}"
-            yt-dlp -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best[height<=${QUALITY%%p}]" \
-                   -o "output/%(title)s.%(ext)s" "$URL"
+            echo "🎥 Downloading best video + audio up to $QUALITY..."
+            yt-dlp \
+              -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" \
+              --merge-output-format mp4 \
+              --cookies cookies.txt \
+              -o "%(title)s.%(ext)s" "$URL"
           fi
 
-          echo "✅ Download complete."
+          echo "✅ Download complete!"
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
 
-      - name: Upload as artifact
+      - name: 📤 Upload final artifact
         uses: actions/upload-artifact@v4
         with:
           name: youtube_result
-          path: output/*
+          path: "*.mp*"
