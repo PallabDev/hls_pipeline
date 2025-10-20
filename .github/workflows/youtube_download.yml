@@ -29,7 +29,8 @@ jobs:
   download:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/yt-dlp/yt-dlp:latest
+      image: tnk4on/yt-dlp:latest
+
     steps:
       - name: 🧩 Checkout repository
         uses: actions/checkout@v4
