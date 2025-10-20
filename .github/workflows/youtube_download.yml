@@ -18,7 +18,8 @@ on:
       quality:
         description: "Video quality (1080p, 720p, 480p — ignored for mp3)"
         required: false
-        default: "720p"
+        # The PHP now ensures it sends one of these, even for mp3
+        default: "720p" 
         type: choice
         options:
           - 1080p
@@ -92,12 +93,14 @@ jobs:
           export YTDLP_CACHE_DIR="$HOME/.cache/yt-dlp"
 
           if [ "$FORMAT" = "mp3" ]; then
+            # This is the correct logic for mp3 extraction
             yt-dlp -f bestaudio $COOKIE_ARG \
               --extract-audio --audio-format mp3 \
               --audio-quality 0 \
               --embed-thumbnail --embed-metadata \
               -o "%(title)s.%(ext)s" "$URL"
           else
+            # This logic uses the QUALITY input for video
             yt-dlp -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" $COOKIE_ARG \
               --merge-output-format mp4 \
               --output "%(title)s.%(ext)s" "$URL"
