@@ -32,11 +32,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache yt-dlp
+      - name: Cache yt-dlp and its cache
         uses: actions/cache@v3
         with:
-          path: ~/.local/bin/yt-dlp
-          key: yt-dlp-v1
+          path: |
+            ~/.local/bin/yt-dlp
+            ~/.cache/yt-dlp
+          key: yt-dlp-cache-v1
 
       - name: Install dependencies
         run: |
@@ -47,11 +49,14 @@ jobs:
 
       - name: Run YouTube Downloader
         env:
-          YT_COOKIES: ${{ secrets.YT_COOKIES }} # Optional
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           URL="${{ github.event.inputs.video_url }}"
           FORMAT="${{ github.event.inputs.format }}"
           QUALITY="${{ github.event.inputs.quality }}"
+          WORKDIR="$GITHUB_WORKSPACE/downloads"
+          mkdir -p "$WORKDIR"
+          cd "$WORKDIR"
 
           echo "🎞️ Downloading: $URL"
           echo "📦 Format: $FORMAT | Quality: $QUALITY"
@@ -62,6 +67,8 @@ jobs:
           else
             COOKIE_ARG=""
           fi
+
+          export YTDLP_CACHE_DIR="$HOME/.cache/yt-dlp"
 
           if [ "$FORMAT" = "mp3" ]; then
             yt-dlp -f bestaudio $COOKIE_ARG \
@@ -79,4 +86,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: youtube_result
-          path: "*.mp3,*.mp4"
+          path: |
+            downloads/*.mp3
+            downloads/*.mp4
