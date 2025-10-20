@@ -47,10 +47,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-pip curl tar
 
-          # Install yt-dlp if missing
-          if ! command -v yt-dlp &> /dev/null; then
-            pip3 install --user yt-dlp
-          fi
+          # CORRECTED: Unconditionally install/upgrade yt-dlp to fix ModuleNotFoundError
+          pip3 install --user --upgrade yt-dlp
 
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
