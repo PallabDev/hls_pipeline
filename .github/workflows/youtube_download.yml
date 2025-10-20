@@ -28,41 +28,39 @@ on:
 jobs:
   download:
     runs-on: ubuntu-latest
-    container:
-      image: tnk4on/yt-dlp:latest
 
     steps:
-      - name: 🧩 Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: 🎬 Run YouTube Downloader
+      - name: Cache yt-dlp
+        uses: actions/cache@v3
+        with:
+          path: ~/.local/bin/yt-dlp
+          key: yt-dlp-v1
+
+      - name: Install yt-dlp and ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          if ! command -v yt-dlp &> /dev/null; then
+            pip install --user yt-dlp
+          fi
+
+      - name: Run YouTube Downloader
         run: |
           URL="${{ github.event.inputs.video_url }}"
           FORMAT="${{ github.event.inputs.format }}"
           QUALITY="${{ github.event.inputs.quality }}"
 
-          echo "🎞️ Downloading from: $URL"
-          echo "📦 Format: $FORMAT"
-          echo "📺 Quality: $QUALITY"
-
           if [ "$FORMAT" = "mp3" ]; then
-            echo "🎧 Extracting best audio..."
-            yt-dlp \
-              -f bestaudio \
-              --extract-audio --audio-format mp3 \
-              --audio-quality 0 \
-              --embed-thumbnail --embed-metadata \
-              -o "%(title)s.%(ext)s" "$URL"
+            yt-dlp -f bestaudio --extract-audio --audio-format mp3 \
+              --audio-quality 0 -o "%(title)s.%(ext)s" "$URL"
           else
-            echo "🎥 Downloading best video + audio up to $QUALITY..."
-            yt-dlp \
-              -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" \
-              --merge-output-format mp4 \
-              -o "%(title)s.%(ext)s" "$URL"
+            yt-dlp -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" \
+              --merge-output-format mp4 -o "%(title)s.%(ext)s" "$URL"
           fi
 
-      - name: 📤 Upload final artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: youtube_result
           path: "*.mp3,*.mp4"
