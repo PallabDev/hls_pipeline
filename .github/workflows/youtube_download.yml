@@ -28,20 +28,14 @@ on:
 jobs:
   download:
     runs-on: ubuntu-latest
-
+    container:
+      image: ghcr.io/yt-dlp/yt-dlp:latest
     steps:
       - name: 🧩 Checkout repository
         uses: actions/checkout@v4
 
-      - name: ⚙️ Install yt-dlp and FFmpeg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-          pip install --upgrade yt-dlp
-
       - name: 🎬 Run YouTube Downloader
         run: |
-          echo "$YT_COOKIES" > cookies.txt
           URL="${{ github.event.inputs.video_url }}"
           FORMAT="${{ github.event.inputs.format }}"
           QUALITY="${{ github.event.inputs.quality }}"
@@ -52,31 +46,22 @@ jobs:
 
           if [ "$FORMAT" = "mp3" ]; then
             echo "🎧 Extracting best audio..."
-            OUTPUT_FILE="$(yt-dlp \
+            yt-dlp \
               -f bestaudio \
               --extract-audio --audio-format mp3 \
               --audio-quality 0 \
               --embed-thumbnail --embed-metadata \
-              --cookies cookies.txt \
-              -o "%(title)s.%(ext)s" "$URL" \
-              --print filename)"
+              -o "%(title)s.%(ext)s" "$URL"
           else
             echo "🎥 Downloading best video + audio up to $QUALITY..."
-            OUTPUT_FILE="$(yt-dlp \
+            yt-dlp \
               -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" \
               --merge-output-format mp4 \
-              --cookies cookies.txt \
-              -o "%(title)s.%(ext)s" "$URL" \
-              --print filename)"
+              -o "%(title)s.%(ext)s" "$URL"
           fi
-
-          echo "✅ Download complete: $OUTPUT_FILE"
-
-        env:
-          YT_COOKIES: ${{ secrets.YT_COOKIES }}
 
       - name: 📤 Upload final artifact
         uses: actions/upload-artifact@v4
         with:
           name: youtube_result
-          path: ${{ steps.download.outputs.OUTPUT_FILE || '*.mp3' || '*.mp4' }}
+          path: "*.mp3,*.mp4"
