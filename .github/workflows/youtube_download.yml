@@ -18,14 +18,16 @@ on:
       quality:
         description: "Video quality (1080p, 720p, 480p — ignored for mp3)"
         required: false
+        # The PHP now ensures it sends one of these, even for mp3
         default: "720p" 
         type: choice
         options:
           - 1080p
           - 720p
           - 480p
+      # ⭐ FIX 1: Added unique download ID input for tracking
       download_id: 
-        description: "Unique identifier for tracking the download"
+        description: "Unique identifier for tracking the download artifact"
         required: true
         type: string
 
@@ -49,7 +51,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip curl tar jq
+          sudo apt-get install -y python3-pip curl tar
 
           # CORRECTED: Unconditionally install/upgrade yt-dlp to fix ModuleNotFoundError
           pip3 install --user --upgrade yt-dlp
@@ -104,71 +106,9 @@ jobs:
               --output "%(title)s.%(ext)s" "$URL"
           fi
 
-      - name: Upload to multiple file hosts
-        run: |
-          cd downloads
-          echo "## 🔗 Direct Download Links" >> $GITHUB_STEP_SUMMARY
-          
-          # Clean up unwanted files first
-          rm -f cookies.txt 2>/dev/null || true
-          
-          for file in *; do
-            if [ -f "$file" ]; then
-              echo "### 📁 $file" >> $GITHUB_STEP_SUMMARY
-              echo "Processing $file..."
-              
-              # Method 1: Transfer.sh (Most reliable)
-              echo "Uploading to transfer.sh..."
-              TRANSFER_URL=$(curl --silent --upload-file "$file" "https://transfer.sh/$file")
-              if [ -n "$TRANSFER_URL" ] && [[ $TRANSFER_URL == http* ]]; then
-                echo "- **Transfer.sh**: [Download]($TRANSFER_URL) (14 days)" >> $GITHUB_STEP_SUMMARY
-                echo "✅ Transfer.sh: $TRANSFER_URL"
-              else
-                echo "- ❌ Transfer.sh failed" >> $GITHUB_STEP_SUMMARY
-              fi
-              
-              # Method 2: 0x0.st
-              echo "Uploading to 0x0.st..."
-              OXOX_RESPONSE=$(curl -s -F "file=@$file" https://0x0.st)
-              if [ -n "$OXOX_RESPONSE" ] && [[ $OXOX_RESPONSE == http* ]]; then
-                echo "- **0x0.st**: [Download]($OXOX_RESPONSE)" >> $GITHUB_STEP_SUMMARY
-                echo "✅ 0x0.st: $OXOX_RESPONSE"
-              else
-                echo "- ❌ 0x0.st failed" >> $GITHUB_STEP_SUMMARY
-              fi
-              
-              # Method 3: File.io with better parsing
-              echo "Uploading to file.io..."
-              FILEIO_RESPONSE=$(curl -s -F "file=@$file" https://file.io)
-              echo "File.io raw response: $FILEIO_RESPONSE"
-              
-              # Try multiple ways to extract the URL
-              FILEIO_URL=$(echo "$FILEIO_RESPONSE" | jq -r '.link // empty' 2>/dev/null)
-              if [ -z "$FILEIO_URL" ]; then
-                FILEIO_URL=$(echo "$FILEIO_RESPONSE" | grep -o '"link":"[^"]*' | cut -d'"' -f4)
-              fi
-              if [ -z "$FILEIO_URL" ]; then
-                FILEIO_URL=$(echo "$FILEIO_RESPONSE" | grep -o 'https://file.io/[^"]*')
-              fi
-              
-              if [ -n "$FILEIO_URL" ] && [[ $FILEIO_URL == http* ]]; then
-                echo "- **File.io**: [Download]($FILEIO_URL) (14 days)" >> $GITHUB_STEP_SUMMARY
-                echo "✅ File.io: $FILEIO_URL"
-              else
-                echo "- ❌ File.io failed" >> $GITHUB_STEP_SUMMARY
-              fi
-              
-              echo "---" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-          
-          # List all downloaded files for debugging
-          echo "### 📋 Downloaded Files" >> $GITHUB_STEP_SUMMARY
-          ls -la >> $GITHUB_STEP_SUMMARY
-
-      # Optional: Keep artifact as backup
-      - name: Upload backup artifact
+      - name: Upload downloaded files
         uses: actions/upload-artifact@v4
         with:
-          name: download-${{ github.event.inputs.download_id }}-${{ github.event.inputs.format }}
+          # ⭐ FIX 2: Renamed artifact to be unique using the download_id input
+          name: download-${{ github.event.inputs.download_id }}
           path: downloads/**/*
