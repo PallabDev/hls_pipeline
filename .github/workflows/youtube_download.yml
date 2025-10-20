@@ -24,6 +24,11 @@ on:
           - 1080p
           - 720p
           - 480p
+      # ⭐ FIX 1: Added unique download ID input for tracking
+      download_id: 
+        description: "Unique identifier for tracking the download artifact"
+        required: true
+        type: string
 
 jobs:
   download:
@@ -95,11 +100,12 @@ jobs:
           else
             yt-dlp -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" $COOKIE_ARG \
               --merge-output-format mp4 \
-              -o "%(title)s.%(ext)s" "$URL"
+              --output "%(title)s.%(ext)s" "$URL"
           fi
 
       - name: Upload downloaded files
         uses: actions/upload-artifact@v4
         with:
-          name: youtube_result
+          # ⭐ FIX 2: Renamed artifact to be unique using the download_id input
+          name: download-${{ github.event.inputs.download_id }}
           path: downloads/**/*
