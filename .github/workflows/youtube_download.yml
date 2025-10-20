@@ -32,20 +32,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache yt-dlp and its cache
+      - name: Cache yt-dlp and ffmpeg
         uses: actions/cache@v3
         with:
           path: |
             ~/.local/bin/yt-dlp
             ~/.cache/yt-dlp
-          key: yt-dlp-cache-v1
+            ~/.local/bin/ffmpeg
+          key: yt-dlp-ffmpeg-cache-v1
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg python3-pip
-          pip3 install --user yt-dlp
+          sudo apt-get install -y python3-pip curl tar
+          
+          # yt-dlp
+          if ! command -v yt-dlp &> /dev/null; then
+            pip3 install --user yt-dlp
+          fi
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+          # ffmpeg static
+          if [ ! -f "$HOME/.local/bin/ffmpeg" ]; then
+            curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz
+            mkdir -p "$HOME/.local/bin"
+            tar -xJf ffmpeg.tar.xz --strip-components=1 -C "$HOME/.local/bin" ffmpeg-*-amd64-static/ffmpeg ffmpeg-*-amd64-static/ffprobe
+            chmod +x "$HOME/.local/bin/ffmpeg" "$HOME/.local/bin/ffprobe"
+          fi
 
       - name: Run YouTube Downloader
         env:
@@ -80,12 +93,9 @@ jobs:
             yt-dlp -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" $COOKIE_ARG \
               --merge-output-format mp4 \
               -o "%(title)s.%(ext)s" "$URL"
-          fi
 
       - name: Upload downloaded files
         uses: actions/upload-artifact@v4
         with:
           name: youtube_result
-          path: |
-            downloads/*.mp3
-            downloads/*.mp4
+          path: downloads/**/*.*
