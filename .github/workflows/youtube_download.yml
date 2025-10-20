@@ -109,6 +109,6 @@ jobs:
       - name: Upload downloaded files
         uses: actions/upload-artifact@v4
         with:
-          # ⭐ FIX 2: Renamed artifact to be unique using the download_id input
-          name: download-${{ github.event.inputs.download_id }}
+          # ⭐ FIX 2: Updated artifact name to include format for better identification
+          name: download-${{ github.event.inputs.download_id }}-${{ github.event.inputs.format }}
           path: downloads/**/*
