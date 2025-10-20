@@ -49,7 +49,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip curl tar
+          sudo apt-get install -y python3-pip curl tar jq
 
           # CORRECTED: Unconditionally install/upgrade yt-dlp to fix ModuleNotFoundError
           pip3 install --user --upgrade yt-dlp
@@ -104,35 +104,71 @@ jobs:
               --output "%(title)s.%(ext)s" "$URL"
           fi
 
-      - name: Upload to file.io
+      - name: Upload to multiple file hosts
         run: |
           cd downloads
-          echo "## 📤 File.io Links (14 days)" >> $GITHUB_STEP_SUMMARY
-          DOWNLOADED_FILES=$(ls -1 | grep -v 'cookies\.txt' | tr '\n' ' ')
-
-          if [ -z "$DOWNLOADED_FILES" ]; then
-            echo "❌ No video/audio file found for upload. Check previous step logs." >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-          for file in $DOWNLOADED_FILES; do
+          echo "## 🔗 Direct Download Links" >> $GITHUB_STEP_SUMMARY
+          
+          # Clean up unwanted files first
+          rm -f cookies.txt 2>/dev/null || true
+          
+          for file in *; do
             if [ -f "$file" ]; then
-              echo "Uploading $file to file.io..."
-              RESPONSE=$(curl -F "file=@$file" https://file.io)
-              echo "Response: $RESPONSE"
-    
-              DOWNLOAD_URL=$(echo "$RESPONSE" | sed -n 's/.*"link":"\([^"]*\)".*/\1/p')
-              if [ -z "$DOWNLOAD_URL" ]; then
-                  DOWNLOAD_URL=$(echo "$RESPONSE" | grep -o '"link":"[^"]*' | cut -d'"' -f4)
-              fi
-              if [ -n "$DOWNLOAD_URL" ]; then
-                echo "- **$file**: [Download Here]($DOWNLOAD_URL)" >> $GITHUB_STEP_SUMMARY
-                echo "✅ File.io link: $DOWNLOAD_URL"
+              echo "### 📁 $file" >> $GITHUB_STEP_SUMMARY
+              echo "Processing $file..."
+              
+              # Method 1: Transfer.sh (Most reliable)
+              echo "Uploading to transfer.sh..."
+              TRANSFER_URL=$(curl --silent --upload-file "$file" "https://transfer.sh/$file")
+              if [ -n "$TRANSFER_URL" ] && [[ $TRANSFER_URL == http* ]]; then
+                echo "- **Transfer.sh**: [Download]($TRANSFER_URL) (14 days)" >> $GITHUB_STEP_SUMMARY
+                echo "✅ Transfer.sh: $TRANSFER_URL"
               else
-                ERROR_MSG=$(echo "$RESPONSE" | sed -n 's/.*"message":"\([^"]*\)".*/\1/p')
-                
-                echo "❌ Failed to get download URL for $file"
-                echo "File.io Error: ${ERROR_MSG:-Unknown}"
-                echo "- **$file**: Upload failed (Error: ${ERROR_MSG:-Unknown})" >> $GITHUB_STEP_SUMMARY
+                echo "- ❌ Transfer.sh failed" >> $GITHUB_STEP_SUMMARY
               fi
+              
+              # Method 2: 0x0.st
+              echo "Uploading to 0x0.st..."
+              OXOX_RESPONSE=$(curl -s -F "file=@$file" https://0x0.st)
+              if [ -n "$OXOX_RESPONSE" ] && [[ $OXOX_RESPONSE == http* ]]; then
+                echo "- **0x0.st**: [Download]($OXOX_RESPONSE)" >> $GITHUB_STEP_SUMMARY
+                echo "✅ 0x0.st: $OXOX_RESPONSE"
+              else
+                echo "- ❌ 0x0.st failed" >> $GITHUB_STEP_SUMMARY
+              fi
+              
+              # Method 3: File.io with better parsing
+              echo "Uploading to file.io..."
+              FILEIO_RESPONSE=$(curl -s -F "file=@$file" https://file.io)
+              echo "File.io raw response: $FILEIO_RESPONSE"
+              
+              # Try multiple ways to extract the URL
+              FILEIO_URL=$(echo "$FILEIO_RESPONSE" | jq -r '.link // empty' 2>/dev/null)
+              if [ -z "$FILEIO_URL" ]; then
+                FILEIO_URL=$(echo "$FILEIO_RESPONSE" | grep -o '"link":"[^"]*' | cut -d'"' -f4)
+              fi
+              if [ -z "$FILEIO_URL" ]; then
+                FILEIO_URL=$(echo "$FILEIO_RESPONSE" | grep -o 'https://file.io/[^"]*')
+              fi
+              
+              if [ -n "$FILEIO_URL" ] && [[ $FILEIO_URL == http* ]]; then
+                echo "- **File.io**: [Download]($FILEIO_URL) (14 days)" >> $GITHUB_STEP_SUMMARY
+                echo "✅ File.io: $FILEIO_URL"
+              else
+                echo "- ❌ File.io failed" >> $GITHUB_STEP_SUMMARY
+              fi
+              
+              echo "---" >> $GITHUB_STEP_SUMMARY
             fi
           done
+          
+          # List all downloaded files for debugging
+          echo "### 📋 Downloaded Files" >> $GITHUB_STEP_SUMMARY
+          ls -la >> $GITHUB_STEP_SUMMARY
+
+      # Optional: Keep artifact as backup
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: download-${{ github.event.inputs.download_id }}-${{ github.event.inputs.format }}
+          path: downloads/**/*
