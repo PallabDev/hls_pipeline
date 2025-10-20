@@ -18,16 +18,14 @@ on:
       quality:
         description: "Video quality (1080p, 720p, 480p — ignored for mp3)"
         required: false
-        # The PHP now ensures it sends one of these, even for mp3
         default: "720p" 
         type: choice
         options:
           - 1080p
           - 720p
           - 480p
-      # ⭐ FIX 1: Added unique download ID input for tracking
       download_id: 
-        description: "Unique identifier for tracking the download artifact"
+        description: "Unique identifier for tracking the download"
         required: true
         type: string
 
@@ -106,9 +104,22 @@ jobs:
               --output "%(title)s.%(ext)s" "$URL"
           fi
 
-      - name: Upload downloaded files
-        uses: actions/upload-artifact@v4
-        with:
-          # ⭐ FIX 2: Updated artifact name to include format for better identification
-          name: download-${{ github.event.inputs.download_id }}-${{ github.event.inputs.format }}
-          path: downloads/**/*
+      - name: Upload to file.io
+        run: |
+          cd downloads
+          echo "## 📤 File.io Links (14 days)" >> $GITHUB_STEP_SUMMARY
+          for file in *; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file to file.io..."
+              RESPONSE=$(curl -F "file=@$file" https://file.io)
+              echo "Response: $RESPONSE"
+              DOWNLOAD_URL=$(echo "$RESPONSE" | grep -o '"link":"[^"]*' | cut -d'"' -f4)
+              if [ -n "$DOWNLOAD_URL" ]; then
+                echo "- **$file**: [Download Here]($DOWNLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+                echo "✅ File.io link: $DOWNLOAD_URL"
+              else
+                echo "❌ Failed to get download URL for $file"
+                echo "- **$file**: Upload failed" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          done
