@@ -45,19 +45,38 @@ jobs:
           if ! command -v yt-dlp &> /dev/null; then
             pip install --user yt-dlp
           fi
+          # Ensure yt-dlp is in PATH
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Run YouTube Downloader
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }} # Optional, for age-restricted videos
         run: |
           URL="${{ github.event.inputs.video_url }}"
           FORMAT="${{ github.event.inputs.format }}"
           QUALITY="${{ github.event.inputs.quality }}"
 
-          if [ "$FORMAT" = "mp3" ]; then
-            yt-dlp -f bestaudio --extract-audio --audio-format mp3 \
-              --audio-quality 0 -o "%(title)s.%(ext)s" "$URL"
+          echo "🎞️ Downloading: $URL"
+          echo "📦 Format: $FORMAT | Quality: $QUALITY"
+
+          # Save cookies if provided
+          if [ -n "$YT_COOKIES" ]; then
+            echo "$YT_COOKIES" > cookies.txt
+            COOKIE_ARG="--cookies cookies.txt"
           else
-            yt-dlp -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" \
-              --merge-output-format mp4 -o "%(title)s.%(ext)s" "$URL"
+            COOKIE_ARG=""
+          fi
+
+          if [ "$FORMAT" = "mp3" ]; then
+            yt-dlp -f bestaudio $COOKIE_ARG \
+              --extract-audio --audio-format mp3 \
+              --audio-quality 0 \
+              --embed-thumbnail --embed-metadata \
+              -o "%(title)s.%(ext)s" "$URL"
+          else
+            yt-dlp -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" $COOKIE_ARG \
+              --merge-output-format mp4 \
+              -o "%(title)s.%(ext)s" "$URL"
           fi
 
       - uses: actions/upload-artifact@v4
