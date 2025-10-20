@@ -40,7 +40,7 @@ jobs:
             ~/.local/bin/ffmpeg
             ~/.local/bin/ffprobe
             ~/.cache/yt-dlp
-          key: yt-dlp-ffmpeg-cache-v2
+          key: yt-dlp-ffmpeg-cache-v3
 
       - name: Install dependencies
         run: |
@@ -98,6 +98,7 @@ jobs:
             yt-dlp -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" $COOKIE_ARG \
               --merge-output-format mp4 \
               -o "%(title)s.%(ext)s" "$URL"
+          fi
 
       - name: Upload downloaded files
         uses: actions/upload-artifact@v4
