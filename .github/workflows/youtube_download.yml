@@ -52,23 +52,26 @@ jobs:
 
           if [ "$FORMAT" = "mp3" ]; then
             echo "🎧 Extracting best audio..."
-            yt-dlp \
+            OUTPUT_FILE="$(yt-dlp \
               -f bestaudio \
               --extract-audio --audio-format mp3 \
               --audio-quality 0 \
               --embed-thumbnail --embed-metadata \
               --cookies cookies.txt \
-              -o "%(title)s.%(ext)s" "$URL"
+              -o "%(title)s.%(ext)s" "$URL" \
+              --print filename)"
           else
             echo "🎥 Downloading best video + audio up to $QUALITY..."
-            yt-dlp \
+            OUTPUT_FILE="$(yt-dlp \
               -f "bestvideo[height<=${QUALITY%%p}]+bestaudio/best" \
               --merge-output-format mp4 \
               --cookies cookies.txt \
-              -o "%(title)s.%(ext)s" "$URL"
+              -o "%(title)s.%(ext)s" "$URL" \
+              --print filename)"
           fi
 
-          echo "✅ Download complete!"
+          echo "✅ Download complete: $OUTPUT_FILE"
+
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
 
@@ -76,4 +79,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: youtube_result
-          path: "*.mp*"
+          path: ${{ steps.download.outputs.OUTPUT_FILE || '*.mp3' || '*.mp4' }}
