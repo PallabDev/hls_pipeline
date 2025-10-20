@@ -38,19 +38,16 @@ jobs:
           path: ~/.local/bin/yt-dlp
           key: yt-dlp-v1
 
-      - name: Install yt-dlp and ffmpeg
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
-          if ! command -v yt-dlp &> /dev/null; then
-            pip install --user yt-dlp
-          fi
-          # Ensure yt-dlp is in PATH
+          sudo apt-get install -y ffmpeg python3-pip
+          pip3 install --user yt-dlp
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Run YouTube Downloader
         env:
-          YT_COOKIES: ${{ secrets.YT_COOKIES }} # Optional, for age-restricted videos
+          YT_COOKIES: ${{ secrets.YT_COOKIES }} # Optional
         run: |
           URL="${{ github.event.inputs.video_url }}"
           FORMAT="${{ github.event.inputs.format }}"
@@ -59,7 +56,6 @@ jobs:
           echo "🎞️ Downloading: $URL"
           echo "📦 Format: $FORMAT | Quality: $QUALITY"
 
-          # Save cookies if provided
           if [ -n "$YT_COOKIES" ]; then
             echo "$YT_COOKIES" > cookies.txt
             COOKIE_ARG="--cookies cookies.txt"
@@ -79,7 +75,8 @@ jobs:
               -o "%(title)s.%(ext)s" "$URL"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload downloaded files
+        uses: actions/upload-artifact@v4
         with:
           name: youtube_result
           path: "*.mp3,*.mp4"
