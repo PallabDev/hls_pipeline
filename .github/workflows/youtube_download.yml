@@ -108,18 +108,31 @@ jobs:
         run: |
           cd downloads
           echo "## 📤 File.io Links (14 days)" >> $GITHUB_STEP_SUMMARY
-          for file in *; do
+          DOWNLOADED_FILES=$(ls -1 | grep -v 'cookies\.txt' | tr '\n' ' ')
+
+          if [ -z "$DOWNLOADED_FILES" ]; then
+            echo "❌ No video/audio file found for upload. Check previous step logs." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          for file in $DOWNLOADED_FILES; do
             if [ -f "$file" ]; then
               echo "Uploading $file to file.io..."
               RESPONSE=$(curl -F "file=@$file" https://file.io)
               echo "Response: $RESPONSE"
-              DOWNLOAD_URL=$(echo "$RESPONSE" | grep -o '"link":"[^"]*' | cut -d'"' -f4)
+    
+              DOWNLOAD_URL=$(echo "$RESPONSE" | sed -n 's/.*"link":"\([^"]*\)".*/\1/p')
+              if [ -z "$DOWNLOAD_URL" ]; then
+                  DOWNLOAD_URL=$(echo "$RESPONSE" | grep -o '"link":"[^"]*' | cut -d'"' -f4)
+              fi
               if [ -n "$DOWNLOAD_URL" ]; then
                 echo "- **$file**: [Download Here]($DOWNLOAD_URL)" >> $GITHUB_STEP_SUMMARY
                 echo "✅ File.io link: $DOWNLOAD_URL"
               else
+                ERROR_MSG=$(echo "$RESPONSE" | sed -n 's/.*"message":"\([^"]*\)".*/\1/p')
+                
                 echo "❌ Failed to get download URL for $file"
-                echo "- **$file**: Upload failed" >> $GITHUB_STEP_SUMMARY
+                echo "File.io Error: ${ERROR_MSG:-Unknown}"
+                echo "- **$file**: Upload failed (Error: ${ERROR_MSG:-Unknown})" >> $GITHUB_STEP_SUMMARY
               fi
             fi
           done
