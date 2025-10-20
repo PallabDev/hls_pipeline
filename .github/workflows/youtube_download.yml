@@ -32,32 +32,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache yt-dlp and ffmpeg
+      - name: Cache yt-dlp, ffmpeg, and yt-dlp cache
         uses: actions/cache@v3
         with:
           path: |
             ~/.local/bin/yt-dlp
-            ~/.cache/yt-dlp
             ~/.local/bin/ffmpeg
-          key: yt-dlp-ffmpeg-cache-v1
+            ~/.local/bin/ffprobe
+            ~/.cache/yt-dlp
+          key: yt-dlp-ffmpeg-cache-v2
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-pip curl tar
-          
-          # yt-dlp
+
+          # Install yt-dlp if missing
           if ! command -v yt-dlp &> /dev/null; then
             pip3 install --user yt-dlp
           fi
+
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-          # ffmpeg static
+          # Install static ffmpeg if missing
           if [ ! -f "$HOME/.local/bin/ffmpeg" ]; then
             curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz
-            mkdir -p "$HOME/.local/bin"
-            tar -xJf ffmpeg.tar.xz --strip-components=1 -C "$HOME/.local/bin" ffmpeg-*-amd64-static/ffmpeg ffmpeg-*-amd64-static/ffprobe
-            chmod +x "$HOME/.local/bin/ffmpeg" "$HOME/.local/bin/ffprobe"
+            mkdir ffmpeg_tmp
+            tar -xJf ffmpeg.tar.xz -C ffmpeg_tmp
+            cp ffmpeg_tmp/*-amd64-static/ffmpeg $HOME/.local/bin/
+            cp ffmpeg_tmp/*-amd64-static/ffprobe $HOME/.local/bin/
+            chmod +x $HOME/.local/bin/ffmpeg $HOME/.local/bin/ffprobe
+            rm -rf ffmpeg_tmp ffmpeg.tar.xz
           fi
 
       - name: Run YouTube Downloader
@@ -98,4 +103,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: youtube_result
-          path: downloads/**/*.*
+          path: downloads/**/*
